@@ -1,0 +1,17 @@
+{
+  "react-native": {
+    "messaging_android_notification_color": "@color/notification_icon_color",
+    "messaging_android_headless_task_timeout": 60000,
+    "messaging_android_notification_channel_id": "high_importance_channel",
+    "messaging_ios_foreground_presentation_options": ["badge", "sound", "list", "banner"],
+    "messaging_ios_auto_register_for_remote_messages": true,
+    "analytics_auto_collection_enabled": true,
+    "messaging_auto_init_enabled": true,
+    "messaging_android_notification_importance": "high",
+    "messaging_ios_wake_app": true,
+    "messaging_ios_register_for_remote_messages": true,
+    "messaging_android_enable_notification_channel_importance": true,
+    "messaging_android_enable_priority_message": true,
+    "messaging_android_show_default_channel_notification": true
+  }
+}

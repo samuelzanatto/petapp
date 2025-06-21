@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "625901136876",
+    "project_id": "petapp-9e317",
+    "storage_bucket": "petapp-9e317.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:625901136876:android:ad8a0571ba12ed03f4aec9",
+        "android_client_info": {
+          "package_name": "com.samukka_64.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSy_WNwgEG9jMhV0dyHsuvPm-kYUGwK1o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

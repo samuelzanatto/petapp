@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Serviço de banco de dados PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-petapp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-petappsecret}
+      POSTGRES_DB: ${POSTGRES_DB:-petapp}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - petapp_network
+
+  # Serviço da API backend
+  backend:
+    image: samuelzanatto/petapp-backend:latest
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      # Conexão com o banco de dados
+      DATABASE_URL: postgresql://${POSTGRES_USER:-petapp}:${POSTGRES_PASSWORD:-petappsecret}@postgres:5432/${POSTGRES_DB:-petapp}?schema=public
+      # Outras variáveis de ambiente
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-sua-chave-secreta-jwt}
+      # Chaves de API
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Caminho das credenciais
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/credentials/firebase-service-account.json
+    volumes:
+      - ./credentials:/app/credentials
+      - uploads_data:/app/uploads
+    ports:
+      - "3000:3000"
+    networks:
+      - petapp_network
+    command: >
+      sh -c "npx prisma migrate deploy && npm start"
+
+networks:
+  petapp_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  uploads_data:

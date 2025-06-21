@@ -1,0 +1,9 @@
+export const API_URL = 'http://191.223.238.238:3000/api'; // URL base da API
+export const APP_NAME = 'PetApp'; // Nome do aplicativo
+export const GOOGLE_MAPS_API_KEY = 'AIzaSyCsOMtON7aj0O_C3hRAGQgYnEpURJfteoA';
+export const DEFAULT_PROFILE_IMAGE = 'https://example.com/default-avatar.png'; // URL da imagem padrão do perfil
+export const DEFAULT_PET_IMAGE = 'https://example.com/default-pet.png'; // URL da imagem padrão do pet
+export const LOCATION_PERMISSION_MESSAGE = 'Precisamos de permissão para acessar sua localização.'; // Mensagem de permissão de localização
+export const IMAGE_PICKER_QUALITY = 0.5; // Qualidade da imagem ao selecionar da galeria
+export const MAX_PET_NAME_LENGTH = 30; // Comprimento máximo do nome do pet
+export const MAX_POST_CAPTION_LENGTH = 150; // Comprimento máximo da legenda do post

@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Serviço da API backend
+  backend:
+    image: samuelzanatto/petapp-backend:latest
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      # Conexão com o banco de dados
+      DATABASE_URL: postgresql://user_externo:senha123@191.223.238.238:5432/banco_externo?schema=public
+      # Outras variáveis de ambiente
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-sua-chave-secreta-jwt}
+      # Chaves de API
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # Caminho das credenciais
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/credentials/firebase-service-account.json
+    volumes:
+      - ./credentials:/app/credentials
+      - uploads_data:/app/uploads
+    ports:
+      - "3000:3000"
+    networks:
+      - petapp_network
+    command: >
+      sh -c "npx prisma migrate deploy && npm start"
+
+networks:
+  petapp_network:
+    driver: bridge
+
+volumes:
+  uploads_data:

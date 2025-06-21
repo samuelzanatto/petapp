@@ -1,0 +1,450 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  password     String
+  name         String
+  bio          String?
+  profileImage String?
+
+  // Contatos atualizados
+  phone            String? // Telefone principal
+  whatsappPhone    String? // Número do WhatsApp
+  emergencyPhone   String? // Telefone de emergência
+  emergencyContact String? // Nome do contato de emergência
+
+  // Endereço completo
+  address      String?
+  neighborhood String? // Bairro
+  city         String?
+  state        String?
+  zipCode      String?
+
+  // Campos existentes
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pets           Pet[]
+  posts          Post[]
+  followers      Follow[]        @relation("follower")
+  following      Follow[]        @relation("following")
+  lostPetAlerts  LostPetAlert[]
+  foundPetAlerts FoundPetAlert[]
+  chatRooms      ChatRoom[]
+  foundedRooms   ChatRoom[]      @relation("chat_founder")
+  messages       Message[]
+  comments       Comment[]
+
+  // Pet claims feitas por este usuário
+  petClaims PetClaim[] @relation("ClaimantPetClaims")
+
+  // Pet claims verificadas por este usuário (se for admin)
+  verifiedClaims PetClaim[] @relation("AdminVerifications")
+
+  // Relação para histórico de status das reivindicações
+  statusUpdates ClaimStatusHistory[] @relation("StatusUpdater")
+
+  // Nova relação para dispositivos
+  deviceTokens DeviceToken[] @relation("UserDevices")
+
+  // Relação para notificações
+  notifications     Notification[]
+  sentNotifications Notification[] @relation("SentNotifications")
+
+  // Relação para avistamentos reportados
+  petSightings PetSighting[] @relation("ReportedSightings")
+}
+
+model Pet {
+  id        String     @id @default(uuid())
+  name      String
+  nickname  String? // Apelido do pet
+  species   PetSpecies
+  gender    PetGender?
+  breed     String? // Raça
+  birthdate DateTime? // Data de nascimento exata
+  age       Int? // Idade em anos (aproximada)
+
+  // Características físicas
+  furType             String? // Tipo de pelagem (curto, longo, médio)
+  primaryColor        String? // Cor predominante
+  secondaryColor      String? // Cor secundária
+  distinguishingMarks String? // Marcas distintivas/manchas específicas
+  weight              Float? // Peso em kg
+  size                String? // Tamanho (pequeno, médio, grande)
+
+  // Informações médicas
+  hasDisability          Boolean? // Possui deficiência 
+  disabilityDetails      String? // Detalhes da deficiência
+  takesRegularMedication Boolean? // Toma medicação regular
+  medicationDetails      String? // Detalhes da medicação
+  hasSpecialDiet         Boolean? // Necessita alimentação especial
+  dietDetails            String? // Detalhes da alimentação
+  isNeutered             Boolean? // Castrado/Esterilizado
+  microchipNumber        String? // Número do microchip
+  microchipLocation      String? // Localização do microchip
+  veterinarianContact    String? // Contato do veterinário responsável
+
+  // Comportamento
+  temperament         String? // Temperamento (dócil, tímido, brincalhão, etc)
+  isTrainedToCommands Boolean? // Responde a comandos básicos
+  reactsTo            String? // Reage a (estímulos específicos)
+
+  // Campos existentes
+  description  String?
+  primaryImage String?
+  images       String[]
+  ownerId      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
+
+  owner                User                   @relation(fields: [ownerId], references: [id])
+  posts                Post[]
+  lostAlerts           LostPetAlert[]
+  PetRecoveryAnalytics PetRecoveryAnalytics[]
+}
+
+enum PetSpecies {
+  DOG
+  CAT
+}
+
+enum PetGender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  image     String
+  caption   String?
+  userId    String
+  petId     String?
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id])
+  pet      Pet?      @relation(fields: [petId], references: [id])
+  likes    Like[]
+  comments Comment[]
+
+  @@index([userId])
+  @@index([petId])
+}
+
+model MediaAsset {
+  id        String   @id
+  path      String
+  versions  String
+  mimeType  String
+  folder    String
+  createdAt DateTime @default(now())
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("follower", fields: [followerId], references: [id])
+  following User @relation("following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model LostPetAlert {
+  id               String    @id @default(uuid())
+  petId            String
+  userId           String
+  description      String?
+  lastSeenLocation String?
+  lastSeenAt       DateTime? // Adicionado
+  latitude         Float? // Renomeado de lastSeenLatitude
+  longitude        Float? // Renomeado de lastSeenLongitude
+  reward           Float? // Adicionado
+  status           String    @default("ACTIVE") // Adicionado
+  isUrgent         Boolean   @default(false) // Adicionado
+  images           String[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  pet       Pet        @relation(fields: [petId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+  chatRooms ChatRoom[]
+
+  // Avistamentos reportados para este alerta
+  sightings PetSighting[]
+
+  // Reivindicações deste alerta
+  petClaims            PetClaim[]            @relation("LostAlertClaims")
+  PetRecoveryAnalytics PetRecoveryAnalytics?
+}
+
+model FoundPetAlert {
+  id            String     @id @default(uuid())
+  userId        String
+  image         String
+  description   String?
+  foundLocation String?
+  latitude      Float
+  longitude     Float
+  species       PetSpecies
+  color         String?
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @default(now())
+
+  user      User       @relation(fields: [userId], references: [id])
+  chatRooms ChatRoom[]
+
+  // Reivindicações deste alerta
+  petClaims PetClaim[] @relation("AlertClaims")
+}
+
+model ChatRoom {
+  id              String   @id @default(uuid())
+  userId          String
+  founderId       String   @map("founder_id")
+  foundPetAlertId String?
+  lostPetAlertId  String?
+  petId           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now())
+
+  user          User           @relation(fields: [userId], references: [id])
+  founder       User           @relation("chat_founder", fields: [founderId], references: [id])
+  foundPetAlert FoundPetAlert? @relation(fields: [foundPetAlertId], references: [id])
+  lostPetAlert  LostPetAlert?  @relation(fields: [lostPetAlertId], references: [id])
+  messages      Message[]
+
+  @@index([userId])
+  @@index([founderId])
+  @@index([foundPetAlertId])
+  @@index([lostPetAlertId])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  content    String
+  chatRoomId String
+  senderId   String
+  createdAt  DateTime @default(now())
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender   User     @relation(fields: [senderId], references: [id])
+}
+
+// Adicionar modelos para o sistema de reivindicação de pet perdido
+model PetClaim {
+  id        String      @id @default(uuid())
+  status    ClaimStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relacionamento com o usuário que está reivindicando o pet
+  claimantId String
+  claimant   User   @relation("ClaimantPetClaims", fields: [claimantId], references: [id])
+
+  // Identifica se o alerta é de pet encontrado (FOUND) ou perdido (LOST)
+  alertType String
+
+  // Relação com FoundPetAlert (quando alertType = "FOUND")
+  foundAlertId String?
+  foundAlert   FoundPetAlert? @relation("AlertClaims", fields: [foundAlertId], references: [id])
+
+  // Relação com LostPetAlert (quando alertType = "LOST")
+  lostAlertId  String?
+  lostAlert    LostPetAlert?  @relation("LostAlertClaims", fields: [lostAlertId], references: [id])
+
+  // Histórico de status
+  statusHistory ClaimStatusHistory[]
+
+  // Informações de verificação
+  verificationDetails Json?
+  verificationImages  String[]
+  adminNotes          String?
+  rejectionReason     String?
+
+  // Informações de contato para encontro seguro (após aprovação)
+  meetingLocation String?
+  meetingDate     DateTime?
+  meetingNotes    String?
+
+  // Quando a reivindicação foi verificada
+  verifiedAt   DateTime?
+  verifiedById String?
+  verifiedBy   User?     @relation("AdminVerifications", fields: [verifiedById], references: [id])
+
+  // Quando o encontro aconteceu e o pet foi entregue ao dono
+  completedAt DateTime?
+
+  @@index([claimantId])
+  @@index([status])
+  @@index([foundAlertId, alertType])
+  @@index([lostAlertId, alertType])
+}
+
+// Status possíveis para uma reivindicação
+enum ClaimStatus {
+  PENDING // Aguardando verificação
+  APPROVED // Verificado e aprovado
+  REJECTED // Verificado e rejeitado
+  COMPLETED // Pet devolvido ao dono
+  CANCELLED // Reivindicação cancelada
+}
+
+// Modelo para armazenar tokens de dispositivos para notificações push
+model DeviceToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  deviceId  String?
+  platform  String // 'android' ou 'ios'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation("UserDevices", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Modelo para armazenar notificações
+model Notification {
+  id        String           @id @default(uuid())
+  type      NotificationType
+  title     String
+  message   String
+  data      Json? // Dados adicionais específicos do tipo de notificação
+  imageUrl  String? // URL da imagem associada à notificação
+  read      Boolean          @default(false)
+  userId    String
+  senderId  String? // ID do usuário que gerou a notificação (se aplicável)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @default(now())
+
+  user   User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sender User? @relation("SentNotifications", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([senderId])
+  @@index([type])
+  @@index([read])
+}
+
+// Enum para os tipos de notificação
+enum NotificationType {
+  CHAT // Nova mensagem de chat
+  LOST_PET // Alerta de pet perdido próximo
+  FOUND_PET // Alerta de pet encontrado próximo
+  LIKE // Curtida em post
+  COMMENT // Comentário em post
+  FOLLOW // Novo seguidor
+  CLAIM // Reivindicação de pet
+  SYSTEM // Notificação do sistema
+  PET_SIGHTING // Avistamento de pet perdido
+  PET_FOUND // Pet encontrado (alguém está com o pet)
+}
+
+// Modelo para armazenar histórico de mudanças de status de reivindicações
+model ClaimStatusHistory {
+  id        String      @id @default(uuid())
+  claimId   String
+  status    ClaimStatus
+  comment   String?
+  userId    String
+  createdAt DateTime    @default(now())
+
+  // Relações
+  user  User     @relation("StatusUpdater", fields: [userId], references: [id])
+  claim PetClaim @relation(fields: [claimId], references: [id])
+
+  @@index([claimId])
+  @@index([userId])
+}
+
+// Modelo para armazenar avistamentos de pets perdidos
+model PetSighting {
+  id           String   @id @default(uuid())
+  alertId      String
+  reportedBy   String
+  description  String
+  latitude     Float
+  longitude    Float
+  locationName String?
+  sightedAt    DateTime
+  image        String?
+  hasFoundPet  Boolean  @default(false) // Indica se o usuário está com o pet
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relações
+  alert      LostPetAlert          @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  reporter   User                  @relation("ReportedSightings", fields: [reportedBy], references: [id])
+  recoveries PetRecoveryAnalytics? @relation(name: "RecoveryBySighting")
+
+  @@index([alertId])
+  @@index([reportedBy])
+}
+
+// Modelo para armazenar análises de recuperação de pets perdidos
+model PetRecoveryAnalytics {
+  id                String   @id @default(uuid())
+  alertId           String   @unique
+  petId             String
+  foundDate         DateTime
+  foundBySightingId String?  @unique
+  foundMethod       String // Pode ser 'SIGHTING', 'OWNER', etc.
+  daysToRecover     Int
+  notes             String?
+  createdAt         DateTime @default(now())
+
+  // Relações
+  alert    LostPetAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  pet      Pet          @relation(fields: [petId], references: [id], onDelete: Cascade)
+  sighting PetSighting? @relation(name: "RecoveryBySighting", fields: [foundBySightingId], references: [id])
+}

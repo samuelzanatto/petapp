@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Permitir tráfego não criptografado para o domínio específico do backend -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">191.223.238.238</domain>
+    </domain-config>
+    <!-- Configuração padrão para todos os outros domínios -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
