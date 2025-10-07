@@ -29,7 +29,8 @@ setupUploadFolders();
 // Inicializar aplicativo Express e servidor HTTP
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = '0.0.0.0'; // Aceitar conexões de qualquer IP
 
 // Inicializar Socket.IO para notificações em tempo real
 const io = initializeSocketIO(server);
@@ -69,10 +70,11 @@ app.get('/health', (req, res) => {
 });
 
 // Iniciar servidor
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
-  console.log(`API: http://localhost:${PORT}/api`);
-  console.log(`Socket.IO: ws://localhost:${PORT}`);
+  console.log(`API: http://${HOST}:${PORT}/api`);
+  console.log(`Socket.IO: ws://${HOST}:${PORT}`);
+  console.log(`Acesse externamente: http://SEU_IP_PUBLICO:${PORT}/api`);
 });
 
 // Lidar com erros não tratados
