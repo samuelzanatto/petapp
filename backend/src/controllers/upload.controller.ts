@@ -1,130 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
-import sharp from 'sharp';
 import { PrismaClient } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { ExpressHandler } from '../types/express.d';
-import { moderateImageBuffer } from '../services/bufferModeration';
+import * as supabaseStorage from '../services/supabaseStorage';
 
 const prisma = new PrismaClient();
 const API_URL = config.baseUrl;
-
-type ImageSize = {
-  width: number;
-  height: number;
-  suffix: string;
-};
-
-// Configurações para diferentes tamanhos de imagem
-const IMAGE_SIZES: Record<string, ImageSize[]> = {
-  posts: [
-    { width: 1080, height: 1080, suffix: 'full' },
-    { width: 600, height: 600, suffix: 'medium' },
-    { width: 320, height: 320, suffix: 'thumbnail' }
-  ],
-  pets: [
-    { width: 800, height: 800, suffix: 'full' },
-    { width: 400, height: 400, suffix: 'medium' },
-    { width: 150, height: 150, suffix: 'thumbnail' }
-  ],
-  users: [
-    { width: 400, height: 400, suffix: 'full' },
-    { width: 150, height: 150, suffix: 'thumbnail' }
-  ],
-  alerts: [
-    { width: 800, height: 800, suffix: 'full' },
-    { width: 400, height: 400, suffix: 'medium' }
-  ],
-  default: [
-    { width: 1000, height: 1000, suffix: 'full' },
-    { width: 500, height: 500, suffix: 'medium' },
-    { width: 200, height: 200, suffix: 'thumbnail' }
-  ]
-};
-
-/**
- * Processa uma imagem em vários tamanhos e salva no servidor
- */
-async function processAndSaveImage(
-  buffer: Buffer, 
-  folder: string, 
-  mimeType: string
-): Promise<{ id: string; path: string; versions: Record<string, string> }> {
-  const imageId = uuidv4();
-  const baseDir = path.join(__dirname, '../../uploads', folder);
-  
-  // Criamos diretório se não existir
-  if (!fs.existsSync(baseDir)) {
-    fs.mkdirSync(baseDir, { recursive: true });
-  }
-  
-  // Determinar extensão
-  let extension = 'jpg';
-  if (mimeType === 'image/png') extension = 'png';
-  if (mimeType === 'image/gif') extension = 'gif';
-  if (mimeType === 'image/webp') extension = 'webp';
-  
-  // Escolher os tamanhos com base na pasta
-  const sizes = IMAGE_SIZES[folder] || IMAGE_SIZES.default;
-  
-  // Processar cada tamanho
-  const versions: Record<string, string> = {};
-  
-  for (const size of sizes) {
-    const filename = `${imageId}_${size.suffix}.${extension}`;
-    const filePath = path.join(baseDir, filename);
-    const relativePath = path.join('uploads', folder, filename).replace(/\\/g, '/');
-    
-    try {
-      // Processar com Sharp (otimização e redimensionamento)
-      await sharp(buffer)
-        .resize(size.width, size.height, {
-          fit: 'cover',
-          position: 'center'
-        })
-        .toFile(filePath);
-      
-      // Adicionar ao objeto de versões
-      versions[size.suffix] = relativePath;
-    } catch (error) {
-      console.error(`Erro ao processar imagem ${size.suffix}:`, error);
-      throw new Error(`Falha ao processar imagem ${size.suffix}`);
-    }
-  }
-  
-  // Salvar no banco de dados (opcional)
-  await prisma.mediaAsset.create({
-    data: {
-      id: imageId,
-      path: versions.full || versions.medium || Object.values(versions)[0],
-      versions: JSON.stringify(versions),
-      mimeType,
-      folder,
-      createdAt: new Date()
-    }
-  });
-  
-  return {
-    id: imageId,
-    path: versions.full || versions.medium || Object.values(versions)[0],
-    versions
-  };
-}
 
 /**
  * Endpoint para upload via multipart form
  */
 export const uploadImage: ExpressHandler = async (req: Request, res: Response) => {
   try {
-    const folder = (req.query.folder || 'misc') as string;
+    const folder = (req.query.folder || 'posts') as supabaseStorage.BucketType;
     
     if (!req.file) {
       res.status(400).json({ message: 'Nenhuma imagem enviada' });
       return;
     }
-      const buffer = req.file.buffer;
+    
+    const buffer = req.file.buffer;
     const mimeType = req.file.mimetype;
     
     // Verificar se é uma imagem
@@ -134,21 +29,26 @@ export const uploadImage: ExpressHandler = async (req: Request, res: Response) =
     }
     
     // A moderação da imagem já foi feita pelo middleware imageModerationMiddleware
+    // Fazer upload para o Supabase Storage (sem moderação adicional)
+    const result = await supabaseStorage.uploadImage(buffer, folder, mimeType, false);
     
-    // Processar e salvar a imagem
-    const result = await processAndSaveImage(buffer, folder, mimeType);
-    
-    // Retornar resultado com URLs completas
-    const urlVersions: Record<string, string> = {};
-    Object.entries(result.versions).forEach(([key, path]) => {
-      urlVersions[key] = `${API_URL}/${path}`;
+    // Salvar no banco de dados (opcional)
+    await prisma.mediaAsset.create({
+      data: {
+        id: result.id,
+        path: result.path,
+        versions: JSON.stringify(result.versions),
+        mimeType,
+        folder,
+        createdAt: new Date()
+      }
     });
     
     res.status(200).json({
       id: result.id,
       path: result.path,
-      url: `${API_URL}/${result.path}`,
-      versions: urlVersions
+      url: result.url,
+      versions: result.versions
     });
   } catch (error) {
     console.error('Erro ao fazer upload da imagem:', error);
@@ -161,7 +61,7 @@ export const uploadImage: ExpressHandler = async (req: Request, res: Response) =
  */
 export const uploadBase64Image: ExpressHandler = async (req: Request, res: Response) => {
   try {
-    const { base64Image, folder = 'misc' } = req.body;
+    const { base64Image, folder = 'posts' } = req.body;
     
     if (!base64Image) {
       res.status(400).json({ message: 'A imagem base64 é obrigatória' });
@@ -192,38 +92,42 @@ export const uploadBase64Image: ExpressHandler = async (req: Request, res: Respo
       return;
     }
     
-    // Para uploads base64, precisamos moderar aqui já que não passa pelo middleware
-    const moderationResult = await moderateImageBuffer(buffer, mimeType);
+    // Fazer upload para o Supabase Storage (com moderação)
+    const result = await supabaseStorage.uploadImage(
+      buffer, 
+      folder as supabaseStorage.BucketType, 
+      mimeType, 
+      true
+    );
     
-    // Se a imagem foi rejeitada, informar ao usuário
-    if (moderationResult.isFlagged) {
-      return res.status(400).json({
-        success: false,
-        message: 'Imagem com conteúdo impróprio detectado. Por favor, envie uma imagem apropriada.',
-        details: {
-          unsafeContent: moderationResult.unsafeContent,
-          safetyScores: moderationResult.safetyScores
-        }
-      });
-    }
-    
-    // Processar a imagem
-    const result = await processAndSaveImage(buffer, folder, mimeType);
-    
-    // Retornar resultado com URLs completas
-    const urlVersions: Record<string, string> = {};
-    Object.entries(result.versions).forEach(([key, path]) => {
-      urlVersions[key] = `${API_URL}/${path}`;
+    // Salvar no banco de dados (opcional)
+    await prisma.mediaAsset.create({
+      data: {
+        id: result.id,
+        path: result.path,
+        versions: JSON.stringify(result.versions),
+        mimeType,
+        folder,
+        createdAt: new Date()
+      }
     });
     
     res.status(200).json({
       id: result.id,
       path: result.path,
-      url: `${API_URL}/${result.path}`,
-      versions: urlVersions
+      url: result.url,
+      versions: result.versions
     });
   } catch (error) {
     console.error('Erro ao processar upload de imagem base64:', error);
+    
+    if (error instanceof Error && error.message.includes('conteúdo impróprio')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
     res.status(500).json({ message: 'Erro ao processar a imagem' });
   }
 };
@@ -238,15 +142,22 @@ export const uploadProfileImage: ExpressHandler = async (req: Request, res: Resp
       return;
     }
 
+    const buffer = req.file.buffer;
+    const mimeType = req.file.mimetype;
+
+    // Fazer upload para o Supabase Storage (sem moderação adicional, já foi feita)
+    const result = await supabaseStorage.uploadImage(buffer, 'users', mimeType, false);
+
     // Atualizar o perfil do usuário
     await prisma.user.update({
       where: { id: req.userId as string },
-      data: { profileImage: req.file.path.replace(/\\/g, '/') }
+      data: { profileImage: result.url }
     });
 
     res.status(200).json({ 
       success: true, 
-      imageUrl: `${API_URL}/${req.file.path.replace(/\\/g, '/')}` 
+      imageUrl: result.url,
+      versions: result.versions
     });
   } catch (error) {
     console.error('Erro ao atualizar imagem de perfil:', error);
@@ -284,18 +195,25 @@ export const uploadPetImage: ExpressHandler = async (req: Request, res: Response
       return;
     }
 
-    // Atualizar imagens do pet
-    const filePaths = req.files.map(file => file.path.replace(/\\/g, '/'));
+    // Fazer upload de todas as imagens
+    const uploadPromises = req.files.map(async (file) => {
+      const buffer = file.buffer;
+      const mimeType = file.mimetype;
+      
+      const result = await supabaseStorage.uploadImage(buffer, 'pets', mimeType, false);
+      return result.url;
+    });
+
+    const imageUrls = await Promise.all(uploadPromises);
     
     // Se for a primeira imagem, definir como imagem principal
-    if (!pet.primaryImage && filePaths.length > 0) {
+    if (!pet.primaryImage && imageUrls.length > 0) {
       await prisma.pet.update({
         where: { id: petId },
         data: { 
-          primaryImage: filePaths[0],
-          // Adicionar todas as imagens ao array de imagens
+          primaryImage: imageUrls[0],
           images: {
-            set: filePaths
+            set: imageUrls
           }
         }
       });
@@ -305,7 +223,7 @@ export const uploadPetImage: ExpressHandler = async (req: Request, res: Response
         where: { id: petId },
         data: {
           images: {
-            push: filePaths
+            push: imageUrls
           }
         }
       });
@@ -313,7 +231,7 @@ export const uploadPetImage: ExpressHandler = async (req: Request, res: Response
 
     res.status(200).json({ 
       success: true, 
-      images: filePaths.map(path => `${API_URL}/${path}`) 
+      images: imageUrls
     });
   } catch (error) {
     console.error('Erro ao fazer upload das imagens do pet:', error);
@@ -334,14 +252,20 @@ export const uploadPostImage: ExpressHandler = async (req: Request, res: Respons
     }
 
     // No caso de múltiplas imagens, usar apenas a primeira
-    const filePath = req.files[0].path.replace(/\\/g, '/');
+    const file = req.files[0];
+    const buffer = file.buffer;
+    const mimeType = file.mimetype;
+    
+    // Fazer upload para o Supabase Storage
+    const result = await supabaseStorage.uploadImage(buffer, 'posts', mimeType, false);
     
     // No caso de ser um post novo, apenas retornamos o caminho para o frontend adicionar ao criar o post
     if (!postId) {
       res.status(200).json({ 
         success: true, 
-        imagePath: filePath,
-        imageUrl: `${API_URL}/${filePath}`
+        imagePath: result.url,
+        imageUrl: result.url,
+        versions: result.versions
       });
       return;
     }
@@ -363,14 +287,15 @@ export const uploadPostImage: ExpressHandler = async (req: Request, res: Respons
     await prisma.post.update({
       where: { id: postId },
       data: {
-        image: filePath
+        image: result.url
       }
     });
 
     res.status(200).json({ 
       success: true, 
-      imagePath: filePath,
-      imageUrl: `${API_URL}/${filePath}`
+      imagePath: result.url,
+      imageUrl: result.url,
+      versions: result.versions
     });
   } catch (error) {
     console.error('Erro ao fazer upload da imagem do post:', error);
@@ -388,11 +313,17 @@ export const uploadAlertImage: ExpressHandler = async (req: Request, res: Respon
       return;
     }
 
-    // Simplesmente retornamos o caminho da imagem para uso posterior
+    const buffer = req.file.buffer;
+    const mimeType = req.file.mimetype;
+
+    // Fazer upload para o Supabase Storage
+    const result = await supabaseStorage.uploadImage(buffer, 'alerts', mimeType, false);
+
     res.status(200).json({ 
       success: true, 
-      imagePath: req.file.path.replace(/\\/g, '/'),
-      imageUrl: `${API_URL}/${req.file.path.replace(/\\/g, '/')}` 
+      imagePath: result.url,
+      imageUrl: result.url,
+      versions: result.versions
     });
   } catch (error) {
     console.error('Erro ao fazer upload da imagem de alerta:', error);

@@ -9,6 +9,11 @@ class Config {
     serverKey: string;
     projectId: string;
   };
+  // Configurações do Supabase
+  private _supabase: {
+    url: string;
+    anonKey: string;
+  };
   
   constructor() {
     // Usar variável de ambiente, ou calcular baseado no IP local
@@ -17,6 +22,11 @@ class Config {
     this._firebase = {
       serverKey: process.env.FIREBASE_SERVER_KEY || '',
       projectId: process.env.FIREBASE_PROJECT_ID || 'petapp-9e317',
+    };
+    // Inicializar configurações do Supabase
+    this._supabase = {
+      url: process.env.SUPABASE_URL || '',
+      anonKey: process.env.SUPABASE_ANON_KEY || '',
     };
     
     console.log(`Inicializando API com URL base: ${this._apiUrl}`);
@@ -60,6 +70,11 @@ class Config {
   // Getter para as configurações do Firebase
   get firebase(): any {
     return this._firebase;
+  }
+
+  // Getter para as configurações do Supabase
+  get supabase(): any {
+    return this._supabase;
   }
 }
 

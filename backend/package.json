@@ -13,6 +13,7 @@
     "test:firebase": "tsx scripts/test-firebase-config.js",
     "test:moderation": "tsx scripts/test-moderation.js",
     "test:image": "tsx scripts/test-image-moderation.js",
+    "test:supabase-storage": "tsx scripts/test-supabase-storage.ts",
     "config:mobile-ip": "node scripts/config-mobile-ip.js"
   },
   "keywords": [],
@@ -23,6 +24,7 @@
     "@google-cloud/vision": "^5.1.0",
     "@google/genai": "^1.0.1",
     "@prisma/client": "^6.5.0",
+    "@supabase/supabase-js": "^2.74.0",
     "@types/cors": "^2.8.17",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/morgan": "^1.9.9",
